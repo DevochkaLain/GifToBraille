@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIF to Braille</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', monospace;
+            background: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            background: #16213e;
+            border-radius: 16px;
+            padding: 24px;
+            width: 100%;
+            max-width: 1000px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+
+        h2 {
+            color: #e2e2e2;
+            margin: 0 0 20px 0;
+            font-size: 24px;
+            font-weight: 500;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        input[type="file"] {
+            background: #0f3460;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            border: none;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        button {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.85;
+        }
+		
+		button:disabled,
+		
+		button[disabled] {
+			opacity: 0.4;
+			cursor: not-allowed;
+			pointer-events: none;
+			filter: grayscale(0.2);
+		}
+
+        #playBtn {
+            background: #533483;
+        }
+
+        #result {
+            background: #0f0f1a;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+			text-align: center;
+            line-height: 1.4;
+            color: #0f0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            min-height: 550px;
+            max-height: 70vh;
+            overflow: auto;
+            border: 1px solid #2a2a3a;
+        }
+
+        #result.braille-mode {
+            font-family: monospace;
+            font-size: 14px;
+            letter-spacing: 0;
+        }
+    </style>
+</head>
+
+<body>
+	<div class="container">
+        <h2>UPLOAD GIF</h2>
+        <input type="hidden" id="gifID" value="">
+        
+        <div class="input-group">
+            <input type="file" id="gifFile" accept=".gif">
+            <button id="uploadBtn">UPLOAD</button>
+            <button id="playBtn">PLAY</button>
+        </div>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('gifFile');
+        const uploadBtn = document.getElementById('uploadBtn');
+		const playBtn = document.getElementById('playBtn');
+        const result = document.getElementById('result');
+        const gifId = document.getElementById('gifID');
+
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+		
+		playBtn.disabled = true;
+
+        uploadBtn.addEventListener('click', async () => {
+            const file = fileInput.files[0];
+
+            if (!file) {
+                return;
+            }
+
+            if (file.type !== 'image/gif') {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('gif_file', file);
+
+            result.innerHTML = '';
+
+            const response = await fetch('/upload-gif', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            gifId.value = data['id'];
+			
+			playBtn.disabled = false;
+        });
+
+        playBtn.addEventListener('click', async () => {
+                const GifIdFormData = new FormData();
+                GifIdFormData.append('gif_id', gifId.value);
+				
+				const load_generator = await fetch('/load_generator', {
+					method: 'POST',
+					body: GifIdFormData
+				});
+				
+				playBtn.disabled = true;
+
+				while (true) {
+
+					let next_frame_response = await fetch('/get-next-frame', {
+						method: 'POST',
+						body: GifIdFormData
+					});
+
+					next_frame_data = await next_frame_response.text();
+					
+					if (next_frame_data === 'Please Upload GIF!') {
+						alert(next_frame_data);
+						
+						break;
+					}
+					
+					if (next_frame_data !== 'DONE') {
+						result.innerHTML = next_frame_data;
+
+						await sleep(100);
+					} else {
+						break;
+					}
+
+
+				}
+				
+				playBtn.disabled = false;
+        });
+
+    </script>
+</body>
+</html>
